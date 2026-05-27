@@ -76,3 +76,9 @@ Once initialized, visit `http://localhost:8080` in your web browser.
 ## 🛡️ Security & Privacy
 *   **Encrypted Credentials:** User passwords are encrypted using Spring Security's `BCryptPasswordEncoder` before being stored in the database.
 *   **No Developer Access Required:** Users do not need to register on Google Cloud Console or deal with OAuth registrations, client credentials, redirect URLs, or API key quotas.
+
+---
+
+## 🔧 Troubleshooting & Robustness
+*   **UI Sync / Avatar Load Safeguards:** The frontend controller includes defensive element existence checks. This prevents the common `"Cannot set properties of null (setting 'src')"` type errors during page loads or authentication state changes, ensuring a smooth transition back to the sandbox mode when unauthenticated.
+
