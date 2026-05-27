@@ -14,7 +14,10 @@ document.addEventListener('DOMContentLoaded', () => {
         accentColor: localStorage.getItem('app_accent_color') || 'youtube',
         videosList: [],
         playlistsList: [],
-        currentPlaylistVideos: []
+        currentPlaylistVideos: [],
+        googleAuthenticated: false,
+        googleUser: null,
+        activeSubscribedChannelId: null
     };
 
     // Mock/Demo Data (Selected high-quality real YouTube videos for fallback)
@@ -125,6 +128,9 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Fetch backend config status
         await checkBackendConfig();
+
+        // Fetch Google Login state
+        await checkGoogleAuth();
         
         // Deciding mode and loading feeds
         resolveApplicationMode();
@@ -158,8 +164,125 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // Check Google Login status
+    async function checkGoogleAuth() {
+        try {
+            const res = await fetch('/api/youtube/profile');
+            if (res.ok) {
+                const data = await res.json();
+                state.googleAuthenticated = data.authenticated;
+                if (data.authenticated) {
+                    state.googleUser = data;
+                }
+            }
+        } catch (e) {
+            console.error("Failed to check Google Login status:", e);
+            state.googleAuthenticated = false;
+        }
+    }
+
+    // Render Google Profile Status card in settings
+    function renderSettingsProfileUI() {
+        const cardUnauth = document.getElementById('settings-google-card-unauth');
+        const cardAuth = document.getElementById('settings-google-card-auth');
+        const cardCredentials = document.getElementById('settings-credentials-card');
+
+        if (!cardUnauth || !cardAuth || !cardCredentials) return;
+
+        if (state.googleAuthenticated && state.googleUser) {
+            cardUnauth.style.display = 'none';
+            cardAuth.style.display = 'block';
+            cardCredentials.style.display = 'none';
+
+            document.getElementById('google-profile-name').textContent = state.googleUser.name;
+            document.getElementById('google-profile-email').textContent = state.googleUser.email;
+            if (state.googleUser.avatar) {
+                document.getElementById('google-profile-avatar').src = state.googleUser.avatar;
+                document.getElementById('header-avatar').src = state.googleUser.avatar;
+                document.getElementById('avatar-large').src = state.googleUser.avatar;
+            }
+        } else {
+            cardUnauth.style.display = 'block';
+            cardAuth.style.display = 'none';
+            cardCredentials.style.display = 'block';
+        }
+    }
+
+    // Load Subscriptions horizontal bar bubbles
+    async function loadSubscriptionsBar() {
+        const container = document.getElementById('subscriptions-scroll-container');
+        if (!container) return;
+        container.innerHTML = '';
+
+        try {
+            const res = await fetch('/api/youtube/subscriptions');
+            const data = await res.json();
+            const items = data.items || [];
+
+            if (items.length === 0) {
+                container.innerHTML = '<span style="font-size:11px; color:var(--text-muted); padding: 4px 10px;">No channels found.</span>';
+                return;
+            }
+
+            // Add "All Subs" combined bubble
+            const allBubble = document.createElement('div');
+            allBubble.className = `sub-bubble ${!state.activeSubscribedChannelId ? 'active' : ''}`;
+            allBubble.innerHTML = `
+                <div class="bubble-avatar-wrapper">
+                    <div class="bubble-avatar" style="display:flex; align-items:center; justify-content:center; background:#1e1a2c;">
+                        <i class="fa-solid fa-list-ul" style="font-size: 15px; color: var(--accent-color);"></i>
+                    </div>
+                </div>
+                <span class="bubble-name">All Subs</span>`;
+            
+            allBubble.addEventListener('click', () => {
+                document.querySelectorAll('.sub-bubble').forEach(b => b.classList.remove('active'));
+                allBubble.classList.add('active');
+                state.activeSubscribedChannelId = null;
+                loadDataFeed();
+            });
+            container.appendChild(allBubble);
+
+            // Add actual channels
+            items.forEach(item => {
+                const snippet = item.snippet;
+                if (!snippet) return;
+                const channelId = snippet.resourceId.channelId;
+                const channelName = snippet.title;
+                const thumbnail = snippet.thumbnails && snippet.thumbnails.default ? snippet.thumbnails.default.url : '/assets/avatar.png';
+
+                const bubble = document.createElement('div');
+                bubble.className = `sub-bubble ${state.activeSubscribedChannelId === channelId ? 'active' : ''}`;
+                bubble.innerHTML = `
+                    <div class="bubble-avatar-wrapper">
+                        <img src="${thumbnail}" alt="${channelName}" class="bubble-avatar" loading="lazy">
+                    </div>
+                    <span class="bubble-name">${escapeHtml(channelName)}</span>`;
+
+                bubble.addEventListener('click', () => {
+                    document.querySelectorAll('.sub-bubble').forEach(b => b.classList.remove('active'));
+                    bubble.classList.add('active');
+                    state.activeSubscribedChannelId = channelId;
+                    loadDataFeed();
+                });
+
+                container.appendChild(bubble);
+            });
+
+        } catch (e) {
+            console.error("Failed to load subscription bubbles bar:", e);
+            container.innerHTML = '<span style="font-size:11px; color:var(--text-muted); padding: 4px 10px;">Error loading subscriptions.</span>';
+        }
+    }
+
     // Align local config values
     function resolveApplicationMode() {
+        if (state.googleAuthenticated) {
+            state.useDemoMode = false;
+            document.getElementById('settings-demo-toggle').checked = false;
+            return;
+        }
+
         // Read local user override checkbox
         const userToggleDemo = localStorage.getItem('settings_demo_toggle') === 'true';
         
@@ -208,9 +331,69 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('playlists-grid').style.display = 'none';
         
         const demoBanner = document.getElementById('demo-banner-alert');
+        const bubbleBar = document.getElementById('subscriptions-bubble-bar');
         
-        if (state.useDemoMode) {
+        renderSettingsProfileUI();
+
+        if (state.googleAuthenticated) {
+            demoBanner.style.display = 'none';
+            bubbleBar.style.display = 'block';
+
+            updateChannelUI(state.googleUser.name, "Google Account Subscriptions");
+
+            try {
+                // Fetch subscriptions bar once
+                if (!bubbleBar.querySelector('.sub-bubble')) {
+                    await loadSubscriptionsBar();
+                }
+
+                // Choose endpoint
+                let feedUrl = '/api/youtube/subscribed-feed';
+                if (state.activeSubscribedChannelId) {
+                    feedUrl = `/api/youtube/channel-uploads?channelId=${encodeURIComponent(state.activeSubscribedChannelId)}`;
+                }
+
+                const resFeed = await fetch(feedUrl);
+                const dataFeed = await resFeed.json();
+                
+                if (dataFeed.error) {
+                    throw new Error(dataFeed.error);
+                }
+
+                const feedItems = dataFeed.items || [];
+                state.videosList = mapYoutubeResponse(feedItems);
+                renderVideoGrid('video-feed-grid', state.videosList);
+
+                // Fetch Playlists from authenticated API
+                const resPlaylists = await fetch('/api/youtube/playlists');
+                const dataPlaylists = await resPlaylists.json();
+                const playlistItems = dataPlaylists.items || [];
+                
+                state.playlistsList = playlistItems.map(p => ({
+                    id: p.id,
+                    title: p.snippet.title,
+                    count: p.contentDetails ? p.contentDetails.itemCount : 0,
+                    thumbnail: p.snippet.thumbnails && p.snippet.thumbnails.medium ? p.snippet.thumbnails.medium.url : (p.snippet.thumbnails && p.snippet.thumbnails.high ? p.snippet.thumbnails.high.url : '/assets/banner.png'),
+                    videos: []
+                }));
+                renderPlaylistsGrid(state.playlistsList);
+
+            } catch (e) {
+                console.error("YouTube Subscribed Feed Fetch failed: ", e);
+                bubbleBar.style.display = 'none';
+                demoBanner.style.display = 'flex';
+                demoBanner.querySelector('span').innerHTML = `<strong>Google API Sync Error:</strong> ${e.message}. Loading Sandbox fallback.`;
+                
+                updateChannelUI(demoData.channelName, demoData.subscribers);
+                state.videosList = demoData.videos;
+                renderVideoGrid('video-feed-grid', state.videosList);
+                state.playlistsList = demoData.playlists;
+                renderPlaylistsGrid(state.playlistsList);
+            }
+
+        } else if (state.useDemoMode) {
             demoBanner.style.display = 'flex';
+            bubbleBar.style.display = 'none';
             
             // Channel Info Header Updates
             updateChannelUI(demoData.channelName, demoData.subscribers);
@@ -225,6 +408,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
         } else {
             demoBanner.style.display = 'none';
+            bubbleBar.style.display = 'none';
             
             // Build api query strings
             let query = '';
@@ -255,10 +439,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     const profQuery = activeKey 
                         ? `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${targetId}&key=${activeKey}`
-                        : `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${targetId}`; // Will let service request handle if backend configured
+                        : `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${targetId}`;
                     
-                    // Call YouTube directly or build service endpoint if necessary
-                    const profileRes = await fetch(activeKey ? profQuery : `/api/youtube/config-status`); // Simple placeholder for backend
+                    const profileRes = await fetch(activeKey ? profQuery : `/api/youtube/config-status`);
                     if (profileRes.ok && activeKey) {
                         const profData = await profileRes.json();
                         if (profData.items && profData.items.length > 0) {
@@ -450,7 +633,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             try {
                 let query = `?playlistId=${playlist.id}`;
-                if (!state.backendConfigured) {
+                if (!state.backendConfigured && !state.googleAuthenticated) {
                     query += `&channelId=${encodeURIComponent(state.channelId)}&apiKey=${encodeURIComponent(state.apiKey)}`;
                 }
                 const res = await fetch(`/api/youtube/playlist-items${query}`);

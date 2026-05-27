@@ -1443,3 +1443,158 @@ input:checked + .slider:before {
     padding: 12px;
     border-radius: 12px;
 }
+
+/* ==========================================================================
+   8. Google Sign-In & Subscriptions Bar styling
+   ========================================================================== */
+
+.btn-google {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    height: 44px;
+    border-radius: 12px;
+    background-color: #ffffff;
+    color: #1f2937;
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    box-shadow: 0 4px 12px rgba(255, 255, 255, 0.08);
+    transition: all 0.2s ease;
+    margin-top: 6px;
+}
+
+.btn-google:hover {
+    transform: translateY(-1px);
+    background-color: #f9fafb;
+    box-shadow: 0 6px 16px rgba(255, 255, 255, 0.15);
+}
+
+.btn-google i {
+    color: #EA4335;
+    font-size: 16px;
+}
+
+.google-profile-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    margin-top: 4px;
+}
+
+.google-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1.5px solid var(--accent-color);
+    box-shadow: 0 0 8px var(--accent-glow);
+}
+
+.google-details {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    overflow: hidden;
+}
+
+.google-details h4 {
+    font-family: 'Outfit', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-main);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.google-details p {
+    font-size: 11px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Horizontal Subscriptions Scroll Bar */
+.subscriptions-bar {
+    width: 100%;
+    background-color: rgba(19, 17, 28, 0.7);
+    border-bottom: 1px solid var(--border-color);
+    backdrop-filter: var(--glass-blur);
+    padding: 10px 14px;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.subscriptions-bar::-webkit-scrollbar {
+    display: none;
+}
+
+.subscriptions-scroll {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+}
+
+.sub-bubble {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    flex-shrink: 0;
+    width: 56px;
+    text-align: center;
+}
+
+.bubble-avatar-wrapper {
+    position: relative;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    padding: 2px;
+    background: var(--border-color);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sub-bubble.active .bubble-avatar-wrapper {
+    background: var(--accent-gradient);
+    box-shadow: 0 0 10px var(--accent-glow);
+    transform: scale(1.06);
+}
+
+.sub-bubble:hover .bubble-avatar-wrapper {
+    transform: scale(1.06);
+    box-shadow: 0 0 10px var(--accent-glow);
+}
+
+.bubble-avatar {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+    background: var(--bg-primary);
+}
+
+.bubble-name {
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--text-muted);
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: color 0.2s ease;
+}
+
+.sub-bubble.active .bubble-name {
+    color: var(--accent-color);
+    font-weight: 600;
+}

@@ -79,6 +79,13 @@
                                 </div>
                             </div>
 
+                            <!-- Subscriptions Horizontal Bubble Bar -->
+                            <div class="subscriptions-bar" id="subscriptions-bubble-bar" style="display: none;">
+                                <div class="subscriptions-scroll" id="subscriptions-scroll-container">
+                                    <!-- Dynamic subscription bubbles will load here -->
+                                </div>
+                            </div>
+
                             <div class="feed-section">
                                 <div class="section-header">
                                     <h3>Latest Uploads</h3>
@@ -180,7 +187,31 @@
                                 <p>Personalize and configure your YouTube channel integration</p>
                             </div>
 
-                            <div class="settings-card">
+                            <!-- Google OAuth Integration Card (Unauthenticated) -->
+                            <div class="settings-card" id="settings-google-card-unauth">
+                                <h3>Google Integration</h3>
+                                <p class="settings-desc">Log in with your Google account to automatically stream videos from your subscribed channels.</p>
+                                <a href="/oauth2/authorization/google" class="btn-google" id="btn-google-login">
+                                    <i class="fa-brands fa-google"></i> Sign in with Google
+                                </a>
+                            </div>
+
+                            <!-- Google OAuth Details Card (Authenticated) -->
+                            <div class="settings-card" id="settings-google-card-auth" style="display: none;">
+                                <h3>Google Connected</h3>
+                                <div class="google-profile-card">
+                                    <img src="/assets/avatar.png" alt="Google Avatar" class="google-avatar" id="google-profile-avatar">
+                                    <div class="google-details">
+                                        <h4 id="google-profile-name">Google User</h4>
+                                        <p id="google-profile-email">user@gmail.com</p>
+                                    </div>
+                                </div>
+                                <a href="/logout" class="settings-btn btn-secondary logout-btn" id="btn-google-logout" style="text-align: center; display: flex; align-items: center; justify-content: center; text-decoration: none; margin-top: 10px;">
+                                    <i class="fa-solid fa-right-from-bracket" style="margin-right: 6px;"></i> Sign Out
+                                </a>
+                            </div>
+
+                            <div class="settings-card" id="settings-credentials-card">
                                 <h3>YouTube API Credentials</h3>
                                 <p class="settings-desc">Provide your YouTube Data API v3 key and channel ID to sync your personal uploads.</p>
                                 

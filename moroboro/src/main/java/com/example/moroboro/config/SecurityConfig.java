@@ -15,7 +15,15 @@ public class SecurityConfig {
         http
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(auth -> auth
+                .requestMatchers("/", "/index.html", "/static/**", "/css/**", "/js/**", "/assets/**", "/api/youtube/config-status", "/api/user/profile").permitAll()
                 .anyRequest().permitAll()
+            )
+            .oauth2Login(oauth2 -> oauth2
+                .defaultSuccessUrl("/", true)
+            )
+            .logout(logout -> logout
+                .logoutSuccessUrl("/")
+                .permitAll()
             )
             .headers(headers -> headers.frameOptions(frame -> frame.disable()));
         return http.build();
