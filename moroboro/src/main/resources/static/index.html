@@ -94,7 +94,7 @@
                                 
                                 <div class="demo-banner" id="demo-banner-alert">
                                     <i class="fa-solid fa-circle-info"></i>
-                                    <span>Showing <strong>Demo Videos</strong>. Configure API Key in Settings to stream your account.</span>
+                                    <span>Showing <strong>Demo Videos</strong>. Register or sign in in Settings to stream your channel.</span>
                                 </div>
 
                                 <!-- Skeleton Loaders -->
@@ -187,63 +187,72 @@
                                 <p>Personalize and configure your YouTube channel integration</p>
                             </div>
 
-                            <!-- Google OAuth Integration Card (Unauthenticated) -->
-                            <div class="settings-card" id="settings-google-card-unauth">
-                                <h3>Google Integration</h3>
-                                <p class="settings-desc">Log in with your Google account to automatically stream videos from your subscribed channels.</p>
-                                <a href="/oauth2/authorization/google" class="btn-google" id="btn-google-login">
-                                    <i class="fa-brands fa-google"></i> Sign in with Google
-                                </a>
+                            <!-- Custom User Account Card (Unauthenticated) -->
+                            <div class="settings-card" id="settings-account-unauth">
+                                <div class="settings-tabs" style="display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">
+                                    <button class="tab-btn active" id="btn-show-login" style="background: none; border: none; color: var(--accent-color); font-weight: 600; cursor: pointer; padding: 4px 8px; border-bottom: 2px solid var(--accent-color);">Sign In</button>
+                                    <button class="tab-btn" id="btn-show-register" style="background: none; border: none; color: var(--text-muted); font-weight: 600; cursor: pointer; padding: 4px 8px;">Register</button>
+                                </div>
+
+                                <!-- LOGIN FORM -->
+                                <div id="form-login-container">
+                                    <h3>Sign In</h3>
+                                    <p class="settings-desc" style="margin-bottom: 15px;">Log in to stream video uploads and playlists from your YouTube channel handle.</p>
+                                    
+                                    <div class="form-group" style="margin-bottom: 12px;">
+                                        <label for="login-email">Email Address</label>
+                                        <input type="email" id="login-email" placeholder="name@email.com" style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border-color); background: rgba(255,255,255,0.05); color: var(--text-color); margin-top: 5px;">
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 15px;">
+                                        <label for="login-password">Password</label>
+                                        <input type="password" id="login-password" placeholder="••••••••" style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border-color); background: rgba(255,255,255,0.05); color: var(--text-color); margin-top: 5px;">
+                                    </div>
+                                    <button class="settings-btn btn-primary" id="btn-submit-login" style="width: 100%; padding: 12px; font-weight: 600;">Sign In</button>
+                                </div>
+
+                                <!-- REGISTER FORM -->
+                                <div id="form-register-container" style="display: none;">
+                                    <h3>Create Account</h3>
+                                    <p class="settings-desc" style="margin-bottom: 15px;">Register a local MoroBoro account and link your YouTube custom handle.</p>
+                                    
+                                    <div class="form-group" style="margin-bottom: 12px;">
+                                        <label for="register-email">Email Address</label>
+                                        <input type="email" id="register-email" placeholder="name@email.com" style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border-color); background: rgba(255,255,255,0.05); color: var(--text-color); margin-top: 5px;">
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 12px;">
+                                        <label for="register-password">Password</label>
+                                        <input type="password" id="register-password" placeholder="Min. 6 characters" style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border-color); background: rgba(255,255,255,0.05); color: var(--text-color); margin-top: 5px;">
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 15px;">
+                                        <label for="register-handle">YouTube Custom Handle</label>
+                                        <input type="text" id="register-handle" placeholder="e.g. @GoogleTech or GoogleTech" style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border-color); background: rgba(255,255,255,0.05); color: var(--text-color); margin-top: 5px;">
+                                    </div>
+                                    <button class="settings-btn btn-primary" id="btn-submit-register" style="width: 100%; padding: 12px; font-weight: 600;">Register & Link Channel</button>
+                                </div>
+
+                                <div class="settings-feedback" id="auth-feedback-message" style="margin-top: 15px; font-size: 13px; text-align: center;"></div>
                             </div>
 
-                            <!-- Google OAuth Details Card (Authenticated) -->
-                            <div class="settings-card" id="settings-google-card-auth" style="display: none;">
-                                <h3>Google Connected</h3>
-                                <div class="google-profile-card">
-                                    <img src="/assets/avatar.png" alt="Google Avatar" class="google-avatar" id="google-profile-avatar">
+                            <!-- User Profile Connected Card (Authenticated) -->
+                            <div class="settings-card" id="settings-account-auth" style="display: none;">
+                                <h3>Account Connected</h3>
+                                <div class="google-profile-card" style="display: flex; align-items: center; gap: 12px; margin: 15px 0; background: rgba(255,255,255,0.03); padding: 12px; border-radius: 12px; border: 1px solid var(--border-color);">
+                                    <img src="/assets/avatar.png" alt="Channel Avatar" class="google-avatar" id="account-profile-avatar" style="width: 50px; height: 50px; border-radius: 50%; border: 2px solid var(--accent-color);">
                                     <div class="google-details">
-                                        <h4 id="google-profile-name">Google User</h4>
-                                        <p id="google-profile-email">user@gmail.com</p>
+                                        <h4 id="account-profile-name" style="margin: 0; font-size: 15px; font-weight: 600;">YouTube Channel</h4>
+                                        <p id="account-profile-email" style="margin: 2px 0 0 0; font-size: 12px; color: var(--text-muted);">user@email.com</p>
                                     </div>
                                 </div>
-                                <a href="/logout" class="settings-btn btn-secondary logout-btn" id="btn-google-logout" style="text-align: center; display: flex; align-items: center; justify-content: center; text-decoration: none; margin-top: 10px;">
-                                    <i class="fa-solid fa-right-from-bracket" style="margin-right: 6px;"></i> Sign Out
-                                </a>
+                                <button class="settings-btn btn-secondary logout-btn" id="btn-account-logout" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 600;">
+                                    <i class="fa-solid fa-right-from-bracket"></i> Sign Out
+                                </button>
                             </div>
-
-                            <div class="settings-card" id="settings-credentials-card">
-                                <h3>YouTube API Credentials</h3>
-                                <p class="settings-desc">Provide your YouTube Data API v3 key and channel ID to sync your personal uploads.</p>
-                                
-                                <div class="form-group">
-                                    <label for="settings-api-key">YouTube API Key</label>
-                                    <div class="input-wrapper">
-                                        <input type="password" id="settings-api-key" placeholder="AIzaSy...">
-                                        <button class="toggle-password" id="toggle-api-key-vis" aria-label="Toggle API Key visibility">
-                                            <i class="fa-solid fa-eye-slash"></i>
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div class="form-group">
-                                    <label for="settings-channel-id">YouTube Channel ID</label>
-                                    <input type="text" id="settings-channel-id" placeholder="UC...">
-                                </div>
-
-                                <div class="settings-buttons">
-                                    <button class="settings-btn btn-secondary" id="settings-clear-btn">Clear Local</button>
-                                    <button class="settings-btn btn-primary" id="settings-save-btn">Save & Sync</button>
-                                </div>
-
-                                <div class="settings-feedback" id="settings-feedback-message"></div>
-                            </div>
-
                             <div class="settings-card">
                                 <h3>App Configuration</h3>
                                 <div class="settings-toggle-row">
                                     <div>
                                         <label class="toggle-label">Use Mock/Demo Videos</label>
-                                        <p class="settings-desc">Fallback to demo data if you do not have an API key.</p>
+                                        <p class="settings-desc">Fallback to demo sandbox when you are not signed in.</p>
                                     </div>
                                     <label class="switch">
                                         <input type="checkbox" id="settings-demo-toggle">
@@ -264,28 +273,6 @@
                                     <button class="color-dot" data-color="amber" id="settings-color-amber" aria-label="Cyberpunk Amber Theme" style="--dot-color: #ffb703;"></button>
                                 </div>
                             </div>
-
-                            <!-- Setup Guide -->
-                            <details class="settings-card setup-guide">
-                                <summary>
-                                    <span>How to get YouTube credentials?</span>
-                                    <i class="fa-solid fa-chevron-down"></i>
-                                </summary>
-                                <div class="setup-guide-content">
-                                    <ol>
-                                        <li>Go to the <a href="https://console.cloud.google.com/" target="_blank" rel="noopener">Google Cloud Console</a>.</li>
-                                        <li>Create a new project and search for <strong>YouTube Data API v3</strong>. Enable it.</li>
-                                        <li>Click on <strong>Credentials</strong> -> <strong>Create Credentials</strong> -> <strong>API Key</strong>. Copy the key and paste it above.</li>
-                                        <li>To find your Channel ID:
-                                            <ul>
-                                                <li>Go to YouTube -> Login -> Settings -> Advanced Settings.</li>
-                                                <li>Copy the <strong>Channel ID</strong> (starts with <code>UC</code>).</li>
-                                            </ul>
-                                        </li>
-                                    </ol>
-                                    <p class="note"><strong>Security Note:</strong> Your credentials entered in settings are saved only in your local browser storage (localStorage) and never uploaded to public clouds.</p>
-                                </div>
-                            </details>
                         </section>
                     </main>
 

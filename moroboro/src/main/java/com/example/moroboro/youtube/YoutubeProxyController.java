@@ -1,11 +1,9 @@
 package com.example.moroboro.youtube;
 
-import org.springframework.security.core.Authentication;
-import org.springframework.security.oauth2.client.OAuth2AuthorizedClient;
-import org.springframework.security.oauth2.client.OAuth2AuthorizedClientService;
-import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
-import org.springframework.security.oauth2.core.user.OAuth2User;
+import jakarta.servlet.http.HttpSession;
 import org.springframework.web.bind.annotation.*;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -14,40 +12,19 @@ import java.util.Map;
 public class YoutubeProxyController {
 
     private final YoutubeService youtubeService;
-    private final OAuth2AuthorizedClientService clientService;
 
-    public YoutubeProxyController(YoutubeService youtubeService, OAuth2AuthorizedClientService clientService) {
+    public YoutubeProxyController(YoutubeService youtubeService) {
         this.youtubeService = youtubeService;
-        this.clientService = clientService;
-    }
-
-    private String getAccessToken(Authentication authentication) {
-        if (authentication instanceof OAuth2AuthenticationToken token) {
-            OAuth2AuthorizedClient client = clientService.loadAuthorizedClient(
-                token.getAuthorizedClientRegistrationId(),
-                token.getName()
-            );
-            if (client != null && client.getAccessToken() != null) {
-                return client.getAccessToken().getTokenValue();
-            }
-        }
-        return null;
-    }
-
-    @GetMapping("/config-status")
-    public Map<String, Object> getConfigStatus() {
-        return youtubeService.getConfigStatus();
     }
 
     @GetMapping("/uploads")
-    public Map<?, ?> getUploads(
-            @RequestParam(required = false) String channelId,
-            @RequestParam(required = false) Integer maxResults,
-            @RequestParam(required = false) String pageToken,
-            @RequestParam(required = false) String apiKey) {
+    public Map<?, ?> getUploads(HttpSession session) {
         try {
-            String uploadsPlaylistId = youtubeService.getUploadsPlaylistId(channelId, apiKey);
-            return youtubeService.fetchPlaylistItems(uploadsPlaylistId, maxResults, pageToken, apiKey);
+            User user = (User) session.getAttribute("user");
+            if (user != null) {
+                return youtubeService.parseRssFeed(user.getChannelId());
+            }
+            return Map.of("error", "Not authenticated with MoroBoro.");
         } catch (Exception e) {
             return Map.of("error", e.getMessage());
         }
@@ -56,34 +33,26 @@ public class YoutubeProxyController {
     @GetMapping("/playlist-items")
     public Map<?, ?> getPlaylistItems(
             @RequestParam String playlistId,
-            @RequestParam(required = false) Integer maxResults,
-            @RequestParam(required = false) String pageToken,
-            @RequestParam(required = false) String apiKey,
-            Authentication authentication) {
+            HttpSession session) {
         try {
-            String token = getAccessToken(authentication);
-            if (token != null) {
-                return youtubeService.fetchPlaylistItemsOAuth(playlistId, maxResults, pageToken, token);
+            User user = (User) session.getAttribute("user");
+            if (user != null) {
+                return youtubeService.scrapePlaylistItems(playlistId);
             }
-            return youtubeService.fetchPlaylistItems(playlistId, maxResults, pageToken, apiKey);
+            return Map.of("error", "Not authenticated with MoroBoro.");
         } catch (Exception e) {
             return Map.of("error", e.getMessage());
         }
     }
 
     @GetMapping("/playlists")
-    public Map<?, ?> getPlaylists(
-            @RequestParam(required = false) String channelId,
-            @RequestParam(required = false) Integer maxResults,
-            @RequestParam(required = false) String pageToken,
-            @RequestParam(required = false) String apiKey,
-            Authentication authentication) {
+    public Map<?, ?> getPlaylists(HttpSession session) {
         try {
-            String token = getAccessToken(authentication);
-            if (token != null) {
-                return youtubeService.fetchUserPlaylists(token);
+            User user = (User) session.getAttribute("user");
+            if (user != null) {
+                return youtubeService.scrapePlaylists(user.getYoutubeHandle());
             }
-            return youtubeService.fetchPlaylists(channelId, maxResults, pageToken, apiKey);
+            return Map.of("error", "Not authenticated with MoroBoro.");
         } catch (Exception e) {
             return Map.of("error", e.getMessage());
         }
@@ -92,69 +61,51 @@ public class YoutubeProxyController {
     @GetMapping("/search")
     public Map<?, ?> searchVideos(
             @RequestParam String q,
-            @RequestParam(required = false) String channelId,
-            @RequestParam(required = false) Integer maxResults,
-            @RequestParam(required = false) String pageToken,
-            @RequestParam(required = false) String apiKey) {
+            HttpSession session) {
         try {
-            return youtubeService.searchChannelVideos(q, channelId, maxResults, pageToken, apiKey);
-        } catch (Exception e) {
-            return Map.of("error", e.getMessage());
-        }
-    }
-
-    @GetMapping("/subscribed-feed")
-    public Map<?, ?> getSubscribedFeed(Authentication authentication) {
-        try {
-            String token = getAccessToken(authentication);
-            if (token == null) {
-                return Map.of("error", "Not authenticated with Google.");
+            User user = (User) session.getAttribute("user");
+            if (user != null) {
+                return youtubeService.searchVideosScraped(q, user.getYoutubeHandle());
             }
-            return youtubeService.fetchSubscribedFeed(token);
-        } catch (Exception e) {
-            return Map.of("error", e.getMessage());
-        }
-    }
-
-    @GetMapping("/subscriptions")
-    public Map<?, ?> getSubscriptions(Authentication authentication) {
-        try {
-            String token = getAccessToken(authentication);
-            if (token == null) {
-                return Map.of("error", "Not authenticated with Google.");
-            }
-            return youtubeService.fetchUserSubscriptions(token);
-        } catch (Exception e) {
-            return Map.of("error", e.getMessage());
-        }
-    }
-
-    @GetMapping("/channel-uploads")
-    public Map<?, ?> getChannelUploads(
-            @RequestParam String channelId,
-            Authentication authentication) {
-        try {
-            String token = getAccessToken(authentication);
-            if (token == null) {
-                return Map.of("error", "Not authenticated with Google.");
-            }
-            return youtubeService.fetchChannelUploads(channelId, token);
+            return Map.of("error", "Not authenticated with MoroBoro.");
         } catch (Exception e) {
             return Map.of("error", e.getMessage());
         }
     }
 
     @GetMapping("/profile")
-    public Map<String, Object> getUserProfile(Authentication authentication) {
-        if (authentication instanceof OAuth2AuthenticationToken token) {
-            OAuth2User principal = token.getPrincipal();
+    public Map<String, Object> getUserProfile(HttpSession session) {
+        User user = (User) session.getAttribute("user");
+        if (user != null) {
             return Map.of(
                 "authenticated", true,
-                "name", principal.getAttribute("name") != null ? principal.getAttribute("name") : "",
-                "email", principal.getAttribute("email") != null ? principal.getAttribute("email") : "",
-                "avatar", principal.getAttribute("picture") != null ? principal.getAttribute("picture") : ""
+                "name", user.getChannelTitle(),
+                "email", user.getEmail(),
+                "avatar", user.getChannelAvatar()
             );
         }
         return Map.of("authenticated", false);
+    }
+
+    @GetMapping("/my-channel-details")
+    public Map<?, ?> getMyChannelDetails(HttpSession session) {
+        User user = (User) session.getAttribute("user");
+        if (user == null) {
+            return Map.of("error", "Not authenticated with MoroBoro.");
+        }
+        
+        Map<String, Object> snippet = new HashMap<>();
+        snippet.put("title", user.getChannelTitle());
+        snippet.put("thumbnails", Map.of("high", Map.of("url", user.getChannelAvatar())));
+
+        Map<String, Object> statistics = new HashMap<>();
+        statistics.put("subscriberCount", "100000");
+
+        Map<String, Object> item = new HashMap<>();
+        item.put("id", user.getChannelId());
+        item.put("snippet", snippet);
+        item.put("statistics", statistics);
+
+        return Map.of("items", List.of(item));
     }
 }

@@ -5,19 +5,15 @@
 document.addEventListener('DOMContentLoaded', () => {
     // App State Configuration
     const state = {
-        backendConfigured: false,
-        backendChannelId: null,
         useDemoMode: true, // Default to true until we verify connection
         activeTab: 'tab-home',
-        apiKey: localStorage.getItem('youtube_api_key') || '',
-        channelId: localStorage.getItem('youtube_channel_id') || '',
+        channelId: '', // Set dynamically upon Google login to support search
         accentColor: localStorage.getItem('app_accent_color') || 'youtube',
         videosList: [],
         playlistsList: [],
         currentPlaylistVideos: [],
         googleAuthenticated: false,
-        googleUser: null,
-        activeSubscribedChannelId: null
+        googleUser: null
     };
 
     // Mock/Demo Data (Selected high-quality real YouTube videos for fallback)
@@ -124,11 +120,8 @@ document.addEventListener('DOMContentLoaded', () => {
         setInterval(updateClock, 1000);
         
         applyAccentTheme(state.accentColor);
-        loadSettingsInputs();
+        loadSettingsColors();
         
-        // Fetch backend config status
-        await checkBackendConfig();
-
         // Fetch Google Login state
         await checkGoogleAuth();
         
@@ -149,21 +142,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Check if Spring Boot backend properties are set
-    async function checkBackendConfig() {
-        try {
-            const res = await fetch('/api/youtube/config-status');
-            if (res.ok) {
-                const data = await res.json();
-                state.backendConfigured = data.backendConfigured;
-                state.backendChannelId = data.channelId;
-            }
-        } catch (e) {
-            console.error("Backend config check failed, falling back to local client modes.", e);
-            state.backendConfigured = false;
-        }
-    }
-
     // Check Google Login status
     async function checkGoogleAuth() {
         try {
@@ -181,30 +159,30 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Render Google Profile Status card in settings
+    // Render User Account Status card in settings
     function renderSettingsProfileUI() {
-        const cardUnauth = document.getElementById('settings-google-card-unauth');
-        const cardAuth = document.getElementById('settings-google-card-auth');
-        const cardCredentials = document.getElementById('settings-credentials-card');
+        const cardUnauth = document.getElementById('settings-account-unauth');
+        const cardAuth = document.getElementById('settings-account-auth');
 
-        if (!cardUnauth || !cardAuth || !cardCredentials) return;
+        if (!cardUnauth || !cardAuth) return;
 
         if (state.googleAuthenticated && state.googleUser) {
             cardUnauth.style.display = 'none';
             cardAuth.style.display = 'block';
-            cardCredentials.style.display = 'none';
 
-            document.getElementById('google-profile-name').textContent = state.googleUser.name;
-            document.getElementById('google-profile-email').textContent = state.googleUser.email;
+            document.getElementById('account-profile-name').textContent = state.googleUser.name;
+            document.getElementById('account-profile-email').textContent = state.googleUser.email;
             if (state.googleUser.avatar) {
-                document.getElementById('google-profile-avatar').src = state.googleUser.avatar;
-                document.getElementById('header-avatar').src = state.googleUser.avatar;
-                document.getElementById('avatar-large').src = state.googleUser.avatar;
+                const accProfileAv = document.getElementById('account-profile-avatar');
+                if (accProfileAv) accProfileAv.src = state.googleUser.avatar;
+                const headerAv = document.getElementById('header-avatar');
+                if (headerAv) headerAv.src = state.googleUser.avatar;
+                const avLarge = document.getElementById('avatar-large');
+                if (avLarge) avLarge.src = state.googleUser.avatar;
             }
         } else {
             cardUnauth.style.display = 'block';
             cardAuth.style.display = 'none';
-            cardCredentials.style.display = 'block';
         }
     }
 
@@ -280,36 +258,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (state.googleAuthenticated) {
             state.useDemoMode = false;
             document.getElementById('settings-demo-toggle').checked = false;
-            return;
-        }
-
-        // Read local user override checkbox
-        const userToggleDemo = localStorage.getItem('settings_demo_toggle') === 'true';
-        
-        if (userToggleDemo) {
-            state.useDemoMode = true;
-            document.getElementById('settings-demo-toggle').checked = true;
-            return;
-        }
-
-        // If backend has variables OR client entered local storage keys, disable demo mode
-        const clientCredentialsExist = state.apiKey.trim() !== '' && state.channelId.trim() !== '';
-        
-        if (state.backendConfigured || clientCredentialsExist) {
-            state.useDemoMode = false;
-            document.getElementById('settings-demo-toggle').checked = false;
         } else {
             state.useDemoMode = true;
             document.getElementById('settings-demo-toggle').checked = true;
         }
     }
 
-    // Load credentials and colors in settings forms
-    function loadSettingsInputs() {
-        document.getElementById('settings-api-key').value = state.apiKey;
-        document.getElementById('settings-channel-id').value = state.channelId;
-        
-        // Color dots toggle selection
+    // Load colors selection in settings forms
+    function loadSettingsColors() {
         document.querySelectorAll('.color-dot').forEach(dot => {
             if (dot.dataset.color === state.accentColor) {
                 dot.classList.add('active');
@@ -337,23 +293,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (state.googleAuthenticated) {
             demoBanner.style.display = 'none';
-            bubbleBar.style.display = 'block';
-
-            updateChannelUI(state.googleUser.name, "Google Account Subscriptions");
+            bubbleBar.style.display = 'none';
 
             try {
-                // Fetch subscriptions bar once
-                if (!bubbleBar.querySelector('.sub-bubble')) {
-                    await loadSubscriptionsBar();
+                // Fetch my channel details
+                const resChan = await fetch('/api/youtube/my-channel-details');
+                const dataChan = await resChan.json();
+                
+                if (dataChan.error) {
+                    throw new Error(dataChan.error);
                 }
 
-                // Choose endpoint
-                let feedUrl = '/api/youtube/subscribed-feed';
-                if (state.activeSubscribedChannelId) {
-                    feedUrl = `/api/youtube/channel-uploads?channelId=${encodeURIComponent(state.activeSubscribedChannelId)}`;
+                let profileName = state.googleUser.name;
+                let profileSubs = "Synced Channel";
+                
+                if (dataChan.items && dataChan.items.length > 0) {
+                    const chan = dataChan.items[0];
+                    profileName = chan.snippet.title;
+                    profileSubs = formatSubscriberCount(chan.statistics.subscriberCount) + " subscribers";
+                    state.channelId = chan.id; // Store channel ID for search and other views
+                    
+                    // Update header and banner avatar/profile pictures
+                    if (chan.snippet.thumbnails && chan.snippet.thumbnails.high) {
+                        const avatarUrl = chan.snippet.thumbnails.high.url;
+                        const headerAv = document.getElementById('header-avatar');
+                        if (headerAv) headerAv.src = avatarUrl;
+                        const avLarge = document.getElementById('avatar-large');
+                        if (avLarge) avLarge.src = avatarUrl;
+                        const accProfileAv = document.getElementById('account-profile-avatar');
+                        if (accProfileAv) accProfileAv.src = avatarUrl;
+                    }
                 }
+                
+                updateChannelUI(profileName, profileSubs);
 
-                const resFeed = await fetch(feedUrl);
+                // Fetch uploads (authenticated /api/youtube/uploads returns user uploads)
+                const resFeed = await fetch('/api/youtube/uploads');
                 const dataFeed = await resFeed.json();
                 
                 if (dataFeed.error) {
@@ -367,6 +342,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Fetch Playlists from authenticated API
                 const resPlaylists = await fetch('/api/youtube/playlists');
                 const dataPlaylists = await resPlaylists.json();
+                
+                if (dataPlaylists.error) {
+                    throw new Error(dataPlaylists.error);
+                }
+
                 const playlistItems = dataPlaylists.items || [];
                 
                 state.playlistsList = playlistItems.map(p => ({
@@ -379,7 +359,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderPlaylistsGrid(state.playlistsList);
 
             } catch (e) {
-                console.error("YouTube Subscribed Feed Fetch failed: ", e);
+                console.error("YouTube Channel Feed Fetch failed: ", e);
                 bubbleBar.style.display = 'none';
                 demoBanner.style.display = 'flex';
                 demoBanner.querySelector('span').innerHTML = `<strong>Google API Sync Error:</strong> ${e.message}. Loading Sandbox fallback.`;
@@ -405,94 +385,6 @@ document.addEventListener('DOMContentLoaded', () => {
             // Playlists Load
             state.playlistsList = demoData.playlists;
             renderPlaylistsGrid(state.playlistsList);
-            
-        } else {
-            demoBanner.style.display = 'none';
-            bubbleBar.style.display = 'none';
-            
-            // Build api query strings
-            let query = '';
-            if (!state.backendConfigured) {
-                query = `?channelId=${encodeURIComponent(state.channelId)}&apiKey=${encodeURIComponent(state.apiKey)}`;
-            }
-
-            try {
-                // Fetch videos uploads
-                const resVideos = await fetch(`/api/youtube/uploads${query}`);
-                const dataVideos = await resVideos.json();
-                
-                if (dataVideos.error) {
-                    throw new Error(dataVideos.error);
-                }
-
-                // Check empty items
-                const videoItems = dataVideos.items || [];
-                state.videosList = mapYoutubeResponse(videoItems);
-                
-                // Fetch Channel details to show correct Title & subscribers
-                let targetId = state.backendConfigured ? state.backendChannelId : state.channelId;
-                let activeKey = state.backendConfigured ? '' : state.apiKey;
-                
-                let profileName = "My YouTube Hub";
-                let profileSubs = "Synced Account";
-                
-                try {
-                    const profQuery = activeKey 
-                        ? `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${targetId}&key=${activeKey}`
-                        : `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${targetId}`;
-                    
-                    const profileRes = await fetch(activeKey ? profQuery : `/api/youtube/config-status`);
-                    if (profileRes.ok && activeKey) {
-                        const profData = await profileRes.json();
-                        if (profData.items && profData.items.length > 0) {
-                            const chan = profData.items[0];
-                            profileName = chan.snippet.title;
-                            profileSubs = formatSubscriberCount(chan.statistics.subscriberCount) + " subscribers";
-                            
-                            // Try loading real avatar/banner
-                            if (chan.snippet.thumbnails && chan.snippet.thumbnails.high) {
-                                document.getElementById('header-avatar').src = chan.snippet.thumbnails.high.url;
-                                document.getElementById('avatar-large').src = chan.snippet.thumbnails.high.url;
-                            }
-                        }
-                    } else if (state.backendConfigured) {
-                        profileName = "My Account Stream";
-                        profileSubs = "Personal YouTube Feed";
-                    }
-                } catch (profError) {
-                    console.warn("Could not load custom channel statistics:", profError);
-                }
-                
-                updateChannelUI(profileName, profileSubs);
-                renderVideoGrid('video-feed-grid', state.videosList);
-
-                // Fetch Playlists
-                const resPlaylists = await fetch(`/api/youtube/playlists${query}`);
-                const dataPlaylists = await resPlaylists.json();
-                
-                const playlistItems = dataPlaylists.items || [];
-                state.playlistsList = playlistItems.map(p => ({
-                    id: p.id,
-                    title: p.snippet.title,
-                    count: p.contentDetails ? p.contentDetails.itemCount : 0,
-                    thumbnail: p.snippet.thumbnails && p.snippet.thumbnails.medium ? p.snippet.thumbnails.medium.url : '/assets/banner.png',
-                    videos: [] // lazy load
-                }));
-                
-                renderPlaylistsGrid(state.playlistsList);
-
-            } catch (e) {
-                console.error("YouTube Fetch failed: ", e);
-                // Display error inline and force demo mode fallback visual alert
-                demoBanner.style.display = 'flex';
-                demoBanner.querySelector('span').innerHTML = `<strong>API Sync Error:</strong> ${e.message}. Loading demo sandbox instead.`;
-                
-                updateChannelUI(demoData.channelName, demoData.subscribers);
-                state.videosList = demoData.videos;
-                renderVideoGrid('video-feed-grid', state.videosList);
-                state.playlistsList = demoData.playlists;
-                renderPlaylistsGrid(state.playlistsList);
-            }
         }
 
         // Hide Skeletons, Show elements
@@ -632,11 +524,7 @@ document.addEventListener('DOMContentLoaded', () => {
             renderVideoGrid('playlist-detail-grid', matchedVideos);
         } else {
             try {
-                let query = `?playlistId=${playlist.id}`;
-                if (!state.backendConfigured && !state.googleAuthenticated) {
-                    query += `&channelId=${encodeURIComponent(state.channelId)}&apiKey=${encodeURIComponent(state.apiKey)}`;
-                }
-                const res = await fetch(`/api/youtube/playlist-items${query}`);
+                const res = await fetch(`/api/youtube/playlist-items?playlistId=${playlist.id}`);
                 const data = await res.json();
                 const listItems = data.items || [];
                 const matchedVideos = mapYoutubeResponse(listItems);
@@ -679,11 +567,7 @@ document.addEventListener('DOMContentLoaded', () => {
             renderVideoGrid('search-results-grid', matched);
         } else {
             try {
-                let apiQuery = `?q=${encodeURIComponent(queryText)}`;
-                if (!state.backendConfigured) {
-                    apiQuery += `&channelId=${encodeURIComponent(state.channelId)}&apiKey=${encodeURIComponent(state.apiKey)}`;
-                }
-                const res = await fetch(`/api/youtube/search${apiQuery}`);
+                const res = await fetch(`/api/youtube/search?q=${encodeURIComponent(queryText)}`);
                 const data = await res.json();
                 const items = data.items || [];
                 
@@ -901,91 +785,191 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('playlist-detail-overlay').classList.remove('open');
         });
 
-        // Settings Save Credentials Click
-        document.getElementById('settings-save-btn').addEventListener('click', () => {
-            const apiKeyInput = document.getElementById('settings-api-key').value.trim();
-            const channelIdInput = document.getElementById('settings-channel-id').value.trim();
-            const feedback = document.getElementById('settings-feedback-message');
-
-            if (apiKeyInput === '' || channelIdInput === '') {
-                feedback.className = 'settings-feedback error';
-                feedback.textContent = 'API Key and Channel ID are required.';
-                return;
-            }
-
-            state.apiKey = apiKeyInput;
-            state.channelId = channelIdInput;
-            state.useDemoMode = false;
-            
-            localStorage.setItem('youtube_api_key', apiKeyInput);
-            localStorage.setItem('youtube_channel_id', channelIdInput);
-            localStorage.setItem('settings_demo_toggle', 'false');
-            document.getElementById('settings-demo-toggle').checked = false;
-
-            feedback.className = 'settings-feedback success';
-            feedback.textContent = 'Settings saved. Reloading feed...';
-
-            setTimeout(() => {
-                feedback.textContent = '';
-                loadDataFeed();
-                switchTab('tab-home');
-            }, 1200);
-        });
-
-        // Clear Local Settings Credentials Click
-        document.getElementById('settings-clear-btn').addEventListener('click', () => {
-            localStorage.removeItem('youtube_api_key');
-            localStorage.removeItem('youtube_channel_id');
-            state.apiKey = '';
-            state.channelId = '';
-            
-            document.getElementById('settings-api-key').value = '';
-            document.getElementById('settings-channel-id').value = '';
-            
-            const feedback = document.getElementById('settings-feedback-message');
-            feedback.className = 'settings-feedback success';
-            feedback.textContent = 'Local credentials cleared.';
-            
-            setTimeout(() => {
-                feedback.textContent = '';
-                resolveApplicationMode();
-                loadDataFeed();
-            }, 1000);
-        });
-
         // Toggle Demo Mode Switch Checkbox
         document.getElementById('settings-demo-toggle').addEventListener('change', (e) => {
             const isChecked = e.target.checked;
             state.useDemoMode = isChecked;
             localStorage.setItem('settings_demo_toggle', isChecked ? 'true' : 'false');
             
-            const feedback = document.getElementById('settings-feedback-message');
-            feedback.className = 'settings-feedback success';
-            feedback.textContent = isChecked ? 'Demo Sandbox activated.' : 'Demo Sandbox deactivated.';
-            
-            setTimeout(() => {
-                feedback.textContent = '';
-                loadDataFeed();
-                switchTab('tab-home');
-            }, 1000);
+            loadDataFeed();
+            switchTab('tab-home');
         });
 
-        // Password Visibility toggle key
-        document.getElementById('toggle-api-key-vis').addEventListener('click', (e) => {
-            e.preventDefault();
-            const apiField = document.getElementById('settings-api-key');
-            const icon = e.currentTarget.querySelector('i');
-            
-            if (apiField.type === 'password') {
-                apiField.type = 'text';
-                icon.classList.remove('fa-eye-slash');
-                icon.classList.add('fa-eye');
-            } else {
-                apiField.type = 'password';
-                icon.classList.remove('fa-eye');
-                icon.classList.add('fa-eye-slash');
-            }
-        });
+        // Tab switching for Login / Register form
+        const btnShowLogin = document.getElementById('btn-show-login');
+        const btnShowRegister = document.getElementById('btn-show-register');
+        const formLogin = document.getElementById('form-login-container');
+        const formRegister = document.getElementById('form-register-container');
+        const authFeedback = document.getElementById('auth-feedback-message');
+
+        if (btnShowLogin && btnShowRegister) {
+            btnShowLogin.addEventListener('click', () => {
+                btnShowLogin.classList.add('active');
+                btnShowLogin.style.color = 'var(--accent-color)';
+                btnShowLogin.style.borderBottom = '2px solid var(--accent-color)';
+                
+                btnShowRegister.classList.remove('active');
+                btnShowRegister.style.color = 'var(--text-muted)';
+                btnShowRegister.style.borderBottom = 'none';
+                
+                formLogin.style.display = 'block';
+                formRegister.style.display = 'none';
+                authFeedback.textContent = '';
+            });
+
+            btnShowRegister.addEventListener('click', () => {
+                btnShowRegister.classList.add('active');
+                btnShowRegister.style.color = 'var(--accent-color)';
+                btnShowRegister.style.borderBottom = '2px solid var(--accent-color)';
+                
+                btnShowLogin.classList.remove('active');
+                btnShowLogin.style.color = 'var(--text-muted)';
+                btnShowLogin.style.borderBottom = 'none';
+                
+                formRegister.style.display = 'block';
+                formLogin.style.display = 'none';
+                authFeedback.textContent = '';
+            });
+        }
+
+        // Submit Sign In handler
+        const btnSubmitLogin = document.getElementById('btn-submit-login');
+        if (btnSubmitLogin) {
+            btnSubmitLogin.addEventListener('click', async () => {
+                const email = document.getElementById('login-email').value.trim();
+                const password = document.getElementById('login-password').value;
+
+                if (!email || !password) {
+                    authFeedback.className = 'settings-feedback error';
+                    authFeedback.style.color = '#ff4d4d';
+                    authFeedback.textContent = 'Please enter email and password.';
+                    return;
+                }
+
+                authFeedback.className = 'settings-feedback';
+                authFeedback.style.color = 'var(--text-muted)';
+                authFeedback.textContent = 'Signing in...';
+
+                try {
+                    const formData = new URLSearchParams();
+                    formData.append('email', email);
+                    formData.append('password', password);
+
+                    const res = await fetch('/api/auth/login', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await res.json();
+
+                    if (data.error) {
+                        authFeedback.style.color = '#ff4d4d';
+                        authFeedback.textContent = data.error;
+                    } else {
+                        authFeedback.style.color = '#06d6a0';
+                        authFeedback.textContent = 'Sign in successful!';
+                        state.googleAuthenticated = true;
+                        state.googleUser = data;
+
+                        setTimeout(() => {
+                            authFeedback.textContent = '';
+                            loadDataFeed();
+                            switchTab('tab-home');
+                        }, 1000);
+                    }
+                } catch (err) {
+                    authFeedback.style.color = '#ff4d4d';
+                    authFeedback.textContent = 'Connection error. Please try again.';
+                }
+            });
+        }
+
+        // Submit Register handler
+        const btnSubmitRegister = document.getElementById('btn-submit-register');
+        if (btnSubmitRegister) {
+            btnSubmitRegister.addEventListener('click', async () => {
+                const email = document.getElementById('register-email').value.trim();
+                const password = document.getElementById('register-password').value;
+                const youtubeHandle = document.getElementById('register-handle').value.trim();
+
+                if (!email || !password || !youtubeHandle) {
+                    authFeedback.className = 'settings-feedback error';
+                    authFeedback.style.color = '#ff4d4d';
+                    authFeedback.textContent = 'All fields are required.';
+                    return;
+                }
+
+                if (password.length < 6) {
+                    authFeedback.style.color = '#ff4d4d';
+                    authFeedback.textContent = 'Password must be at least 6 characters.';
+                    return;
+                }
+
+                authFeedback.className = 'settings-feedback';
+                authFeedback.style.color = 'var(--text-muted)';
+                authFeedback.textContent = 'Registering & resolving channel handle...';
+
+                try {
+                    const formData = new URLSearchParams();
+                    formData.append('email', email);
+                    formData.append('password', password);
+                    formData.append('youtubeHandle', youtubeHandle);
+
+                    const res = await fetch('/api/auth/register', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await res.json();
+
+                    if (data.error) {
+                        authFeedback.style.color = '#ff4d4d';
+                        authFeedback.textContent = data.error;
+                    } else {
+                        authFeedback.style.color = '#06d6a0';
+                        authFeedback.textContent = 'Registration successful! Please sign in.';
+                        
+                        // Clear form inputs
+                        document.getElementById('register-email').value = '';
+                        document.getElementById('register-password').value = '';
+                        document.getElementById('register-handle').value = '';
+
+                        // Auto switch to login tab
+                        setTimeout(() => {
+                            btnShowLogin.click();
+                            document.getElementById('login-email').value = email;
+                        }, 1500);
+                    }
+                } catch (err) {
+                    authFeedback.style.color = '#ff4d4d';
+                    authFeedback.textContent = 'Connection error. Please try again.';
+                }
+            });
+        }
+
+        // Logout handler
+        const btnAccountLogout = document.getElementById('btn-account-logout');
+        if (btnAccountLogout) {
+            btnAccountLogout.addEventListener('click', async () => {
+                try {
+                    await fetch('/api/auth/logout', { method: 'POST' });
+                    state.googleAuthenticated = false;
+                    state.googleUser = null;
+                    state.channelId = '';
+
+                    // Reset header/banner avatars to default fallback
+                    const headerAv = document.getElementById('header-avatar');
+                    if (headerAv) headerAv.src = '/assets/avatar.png';
+                    const avLarge = document.getElementById('avatar-large');
+                    if (avLarge) avLarge.src = '/assets/avatar.png';
+                    const accProfileAv = document.getElementById('account-profile-avatar');
+                    if (accProfileAv) accProfileAv.src = '/assets/avatar.png';
+
+                    loadDataFeed();
+                    switchTab('tab-home');
+                } catch (err) {
+                    console.error('Logout failed:', err);
+                }
+            });
+        }
 
         // UI Accent colors select handler
         document.querySelectorAll('.color-dot').forEach(dot => {
